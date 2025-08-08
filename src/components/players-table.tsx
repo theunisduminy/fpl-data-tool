@@ -142,7 +142,6 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
   };
   const [filters, setFilters] = useState<PlayerFilter[]>([]);
   const [filterLogic, setFilterLogic] = useState<'AND' | 'OR'>('AND');
-  const [isFilterBuilderOpen, setIsFilterBuilderOpen] = useState(false);
   const [filterDropdownSearchByIndex, setFilterDropdownSearchByIndex] =
     useState<Record<number, string>>({});
 
@@ -423,9 +422,9 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
 
   return (
     <div className='flex w-full flex-col gap-4'>
-      <div className='flex flex-wrap items-center gap-3'>
+      <div className='flex flex-wrap items-center gap-3 py-2'>
         {showPositionFilter && (
-          <div className='flex items-center gap-2'>
+          <div className='flex w-full flex-col items-start gap-1 sm:w-auto sm:flex-row sm:items-center sm:gap-2'>
             <label className='text-muted-foreground text-sm'>Position</label>
             <Select
               value={position}
@@ -433,7 +432,7 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
                 setPosition(val as Player['position'] | 'ALL')
               }
             >
-              <SelectTrigger className='w-[140px]'>
+              <SelectTrigger className='w-full md:w-[140px]'>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -446,10 +445,10 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
             </Select>
           </div>
         )}
-        <div className='flex items-center gap-2'>
+        <div className='flex w-full flex-col items-start gap-1 sm:w-auto sm:flex-row sm:items-center sm:gap-2'>
           <label className='text-muted-foreground text-sm'>Team</label>
           <Select value={team} onValueChange={(val: string) => setTeam(val)}>
-            <SelectTrigger className='w-[180px]'>
+            <SelectTrigger className='w-full md:w-[180px]'>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -463,10 +462,14 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
           </Select>
         </div>
 
-        <div className='ml-auto flex items-center gap-2'>
+        <div className='grid w-full grid-cols-2 items-center justify-start gap-3 md:ml-auto md:flex md:w-auto md:justify-end md:gap-2'>
           <Sheet open={isRankingSheetOpen} onOpenChange={setIsRankingSheetOpen}>
             <SheetTrigger asChild>
-              <Button variant='outline' size='sm' className='h-8'>
+              <Button
+                variant='outline'
+                size='sm'
+                className='h-8 w-full md:w-auto'
+              >
                 <TrendingUp className='h-4 w-4' />
                 Rank
               </Button>
@@ -544,7 +547,11 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant='outline' size='sm' className='h-8'>
+              <Button
+                variant='outline'
+                size='sm'
+                className='h-8 w-full md:w-auto'
+              >
                 <Settings2 className='h-4 w-4' />
                 View
               </Button>
@@ -622,7 +629,7 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
           <Button
             variant='outline'
             size='sm'
-            className='h-8'
+            className='h-8 w-full md:w-auto'
             onClick={handleExportCsv}
           >
             Export CSV
@@ -630,8 +637,8 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
         </div>
       </div>
 
-      <div className='flex flex-col gap-2 rounded-md border p-2'>
-        <div className='flex items-center gap-2'>
+      <div className='flex flex-col gap-2 rounded-md border px-2 py-3'>
+        <div className='flex flex-wrap items-center gap-x-2 gap-y-3 py-2'>
           <Button
             size='sm'
             onClick={handleAddFilter}
@@ -647,7 +654,7 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
           >
             Clear Filters
           </Button>
-          <div className='ml-auto flex items-center gap-2'>
+          <div className='flex flex-nowrap items-center gap-2 whitespace-nowrap sm:ml-auto'>
             <label className='text-muted-foreground text-sm'>
               Filter Logic
             </label>
@@ -677,7 +684,7 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
                   handleUpdateFilter(idx, 'column', val)
                 }
               >
-                <SelectTrigger className='w-[220px]'>
+                <SelectTrigger className='w-full md:w-[220px]'>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -721,7 +728,7 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
                   handleUpdateFilter(idx, 'operator', val as FilterOperator)
                 }
               >
-                <SelectTrigger className='w-[180px]'>
+                <SelectTrigger className='w-full md:w-[180px]'>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -732,7 +739,7 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
 
               <Input
                 type='number'
-                className='h-9 w-[140px]'
+                className='h-9 w-full md:w-[140px]'
                 placeholder='Value'
                 value={f.value}
                 onChange={(e) =>
@@ -833,7 +840,7 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
           </TableBody>
         </Table>
       </div>
-      <div className='flex items-center justify-between gap-3'>
+      <div className='flex flex-col items-center justify-between gap-3 sm:flex-row'>
         <div className='text-muted-foreground text-xs'>
           Showing {filtered.length === 0 ? 0 : startIndex + 1}-{endIndex} of{' '}
           {filtered.length}
