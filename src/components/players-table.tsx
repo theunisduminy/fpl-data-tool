@@ -20,7 +20,6 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -46,7 +45,7 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 
-type Player = {
+export type Player = {
   first_name: string;
   second_name: string;
   web_name: string;
@@ -58,6 +57,8 @@ type Player = {
   position: 'GK' | 'DEF' | 'MID' | 'FWD';
   [key: string]: unknown;
 };
+
+export type BasePlayer = Omit<Player, 'position'>;
 
 type Props = {
   players: Player[];
@@ -169,7 +170,10 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
       let rankScore = 0;
       Object.entries(weights).forEach(([column, weight]) => {
         if (weight > 0) {
-          const value = Number((player as any)[column]) || 0;
+          const value =
+            Number(
+              (player as Record<string, unknown>)[column] as number | string,
+            ) || 0;
           rankScore += (value * weight) / 100;
         }
       });
@@ -187,8 +191,8 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
     // Apply sorting
     if (sortConfig) {
       result = [...result].sort((a, b) => {
-        const aValue = (a as any)[sortConfig.key];
-        const bValue = (b as any)[sortConfig.key];
+        const aValue = (a as Record<string, unknown>)[sortConfig.key];
+        const bValue = (b as Record<string, unknown>)[sortConfig.key];
 
         // Handle different data types
         let comparison = 0;
@@ -242,7 +246,7 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
     if (players.length === 0) return [];
     const sample = players[0];
     return allColumns.filter((col) => {
-      const value = (sample as any)[col];
+      const value = (sample as Record<string, unknown>)[col];
       return typeof value === 'number' && col !== 'id' && col !== 'team_code';
     });
   }, [allColumns, players]);
@@ -568,7 +572,7 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
                     );
                   }
                   if (col === 'rank_score') {
-                    const rankScore = (p as any)[col];
+                    const rankScore = (p as Record<string, unknown>)[col];
                     return (
                       <TableCell
                         key={col}

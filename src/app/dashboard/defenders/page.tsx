@@ -1,8 +1,15 @@
-import { PlayersTable } from '@/components/players-table';
+import {
+  PlayersTable,
+  type Player,
+  type BasePlayer,
+} from '@/components/players-table';
 import defData from '@/data/def.json';
 
 export default function DefendersPage() {
-  const players = defData.map((p: any) => ({ ...p, position: 'DEF' as const }));
+  const players = (defData as BasePlayer[]).map((p) => ({
+    ...p,
+    position: 'DEF' as const,
+  })) as Player[];
 
   return (
     <>

@@ -1,8 +1,15 @@
-import { PlayersTable } from '@/components/players-table';
+import {
+  PlayersTable,
+  type Player,
+  type BasePlayer,
+} from '@/components/players-table';
 import fwdData from '@/data/fwd.json';
 
 export default function ForwardsPage() {
-  const players = fwdData.map((p: any) => ({ ...p, position: 'FWD' as const }));
+  const players = (fwdData as BasePlayer[]).map((p) => ({
+    ...p,
+    position: 'FWD' as const,
+  })) as Player[];
 
   return (
     <>

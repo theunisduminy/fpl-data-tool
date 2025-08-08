@@ -1,8 +1,15 @@
-import { PlayersTable } from '@/components/players-table';
+import {
+  PlayersTable,
+  type Player,
+  type BasePlayer,
+} from '@/components/players-table';
 import gkData from '@/data/gk.json';
 
 export default function GoalkeepersPage() {
-  const players = gkData.map((p: any) => ({ ...p, position: 'GK' as const }));
+  const players = (gkData as BasePlayer[]).map((p) => ({
+    ...p,
+    position: 'GK' as const,
+  })) as Player[];
 
   return (
     <>

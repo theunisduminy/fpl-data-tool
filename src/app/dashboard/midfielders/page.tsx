@@ -1,8 +1,15 @@
-import { PlayersTable } from '@/components/players-table';
+import {
+  PlayersTable,
+  type Player,
+  type BasePlayer,
+} from '@/components/players-table';
 import midData from '@/data/mid.json';
 
 export default function MidfieldersPage() {
-  const players = midData.map((p: any) => ({ ...p, position: 'MID' as const }));
+  const players = (midData as BasePlayer[]).map((p) => ({
+    ...p,
+    position: 'MID' as const,
+  })) as Player[];
 
   return (
     <>
