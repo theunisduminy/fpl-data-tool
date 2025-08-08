@@ -31,6 +31,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Sheet,
   SheetContent,
   SheetDescription,
@@ -310,35 +317,40 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
         {showPositionFilter && (
           <div className='flex items-center gap-2'>
             <label className='text-muted-foreground text-sm'>Position</label>
-            <select
+            <Select
               value={position}
-              onChange={(e) =>
-                setPosition((e.target.value as Player['position']) || 'ALL')
+              onValueChange={(val: string) =>
+                setPosition(val as Player['position'] | 'ALL')
               }
-              className='bg-background ring-offset-background focus-visible:ring-ring inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm whitespace-nowrap shadow-sm transition-colors focus-visible:ring-1 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50'
             >
-              {POSITION_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className='w-[140px]'>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {POSITION_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         )}
         <div className='flex items-center gap-2'>
           <label className='text-muted-foreground text-sm'>Team</label>
-          <select
-            value={team}
-            onChange={(e) => setTeam(e.target.value)}
-            className='bg-background ring-offset-background focus-visible:ring-ring inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm whitespace-nowrap shadow-sm transition-colors focus-visible:ring-1 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50'
-          >
-            <option value='ALL'>All</option>
-            {teams.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
+          <Select value={team} onValueChange={(val: string) => setTeam(val)}>
+            <SelectTrigger className='w-[180px]'>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='ALL'>All</SelectItem>
+              {teams.map((t) => (
+                <SelectItem key={t} value={t}>
+                  {t}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className='ml-auto flex items-center gap-2'>

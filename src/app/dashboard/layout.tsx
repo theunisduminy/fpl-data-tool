@@ -79,7 +79,9 @@ export default function DashboardLayout({
           <div className='flex flex-1 flex-col overflow-hidden'>
             <div className='relative isolate flex min-h-0 flex-1 flex-col overflow-auto'>
               <div className='@container/main flex flex-1 flex-col gap-2'>
-                <div className='flex flex-col gap-4 p-10'>{children}</div>
+                <div className='flex flex-col gap-4 p-2 md:p-10'>
+                  {children}
+                </div>
               </div>
             </div>
           </div>
