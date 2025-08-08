@@ -134,6 +134,50 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
   const [columnSearch, setColumnSearch] = useState<string>('');
   const [weights, setWeights] = useState<Record<string, number>>({});
   const [isRankingSheetOpen, setIsRankingSheetOpen] = useState(false);
+  type FilterOperator = 'gte' | 'lte';
+  type PlayerFilter = {
+    column: string;
+    operator: FilterOperator;
+    value: number | '';
+  };
+  const [filters, setFilters] = useState<PlayerFilter[]>([]);
+  const [filterLogic, setFilterLogic] = useState<'AND' | 'OR'>('AND');
+  const [isFilterBuilderOpen, setIsFilterBuilderOpen] = useState(false);
+  const [filterDropdownSearchByIndex, setFilterDropdownSearchByIndex] =
+    useState<Record<number, string>>({});
+
+  const handleAddFilter = () => {
+    if (filters.length >= 5) return;
+    const defaultColumn = numericColumns[0] || 'total_points';
+    setFilters((prev) => [
+      ...prev,
+      { column: defaultColumn, operator: 'gte', value: '' },
+    ]);
+  };
+
+  const handleUpdateFilter = (
+    index: number,
+    field: keyof PlayerFilter,
+    value: string | number,
+  ) => {
+    setFilters((prev) =>
+      prev.map((f, i) =>
+        i === index
+          ? {
+              ...f,
+              [field]:
+                field === 'value' ? (value === '' ? '' : Number(value)) : value,
+            }
+          : f,
+      ),
+    );
+  };
+
+  const handleRemoveFilter = (index: number) => {
+    setFilters((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleClearFilters = () => setFilters([]);
 
   const teams = useMemo(() => {
     const set = new Set<string>();
@@ -188,6 +232,29 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
       return matchesPosition && matchesTeam;
     });
 
+    // Apply advanced filters (AND/OR across up to 5 filters)
+    if (filters.length > 0) {
+      const activeFilters = filters.filter(
+        (f) =>
+          f.column && f.operator && f.value !== '' && !Number.isNaN(f.value),
+      );
+      if (activeFilters.length > 0) {
+        result = result.filter((player) => {
+          const evaluateFilter = (f: PlayerFilter): boolean => {
+            const raw = (player as Record<string, unknown>)[f.column];
+            const num = typeof raw === 'number' ? raw : Number(raw);
+            if (Number.isNaN(num)) return false;
+            if (f.operator === 'gte') return num >= Number(f.value);
+            return num <= Number(f.value);
+          };
+          if (filterLogic === 'AND') {
+            return activeFilters.every(evaluateFilter);
+          }
+          return activeFilters.some(evaluateFilter);
+        });
+      }
+    }
+
     // Apply sorting
     if (sortConfig) {
       result = [...result].sort((a, b) => {
@@ -212,7 +279,9 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
     }
 
     return result;
-  }, [playersWithRanking, position, team, sortConfig]);
+  }, [playersWithRanking, position, team, sortConfig, filters, filterLogic]);
+  // include filters and filterLogic in memo deps
+  // NOTE: We must re-declare filtered with updated deps to include filters
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -313,6 +382,43 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
       }
       setIsRankingSheetOpen(false);
     }
+  };
+
+  const handleExportCsv = () => {
+    const headers = visibleColumns;
+    const escapeCsvValue = (value: unknown): string => {
+      if (value === null || value === undefined) return '';
+      const str = String(value);
+      // Escape if needed
+      if (/[",\n]/.test(str)) {
+        return '"' + str.replace(/"/g, '""') + '"';
+      }
+      return str;
+    };
+
+    const rows = filtered.map((row) =>
+      headers
+        .map((col) => {
+          const raw = (row as Record<string, unknown>)[col];
+          return escapeCsvValue(raw);
+        })
+        .join(','),
+    );
+
+    const headerLine = headers
+      .map((h) => escapeCsvValue(formatColumnHeader(h)))
+      .join(',');
+    const csv = [headerLine, ...rows].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'players-export.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -512,6 +618,137 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
               )}
             </DropdownMenuContent>
           </DropdownMenu>
+
+          <Button
+            variant='outline'
+            size='sm'
+            className='h-8'
+            onClick={handleExportCsv}
+          >
+            Export CSV
+          </Button>
+        </div>
+      </div>
+
+      <div className='flex flex-col gap-2 rounded-md border p-2'>
+        <div className='flex items-center gap-2'>
+          <Button
+            size='sm'
+            onClick={handleAddFilter}
+            disabled={filters.length >= 5 || numericColumns.length === 0}
+          >
+            Add Filter
+          </Button>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={handleClearFilters}
+            disabled={filters.length === 0}
+          >
+            Clear Filters
+          </Button>
+          <div className='ml-auto flex items-center gap-2'>
+            <label className='text-muted-foreground text-sm'>
+              Filter Logic
+            </label>
+            <Select
+              value={filterLogic}
+              onValueChange={(val: string) =>
+                setFilterLogic(val as 'AND' | 'OR')
+              }
+            >
+              <SelectTrigger className='w-[100px]'>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value='AND'>AND</SelectItem>
+                <SelectItem value='OR'>OR</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className='flex w-full flex-col gap-2'>
+          {filters.map((f, idx) => (
+            <div key={idx} className='flex flex-wrap items-center gap-2'>
+              <Select
+                value={f.column}
+                onValueChange={(val: string) =>
+                  handleUpdateFilter(idx, 'column', val)
+                }
+              >
+                <SelectTrigger className='w-[220px]'>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <div className='p-2'>
+                    <div className='relative'>
+                      <Search className='text-muted-foreground absolute top-2.5 left-2 h-4 w-4' />
+                      <Input
+                        placeholder='Search stats...'
+                        value={filterDropdownSearchByIndex[idx] || ''}
+                        onChange={(e) =>
+                          setFilterDropdownSearchByIndex((prev) => ({
+                            ...prev,
+                            [idx]: e.target.value,
+                          }))
+                        }
+                        className='h-8 pl-8'
+                      />
+                    </div>
+                  </div>
+                  {numericColumns
+                    .filter((col) =>
+                      formatColumnHeader(col)
+                        .toLowerCase()
+                        .includes(
+                          (filterDropdownSearchByIndex[idx] || '')
+                            .trim()
+                            .toLowerCase(),
+                        ),
+                    )
+                    .map((col) => (
+                      <SelectItem key={col} value={col}>
+                        {formatColumnHeader(col)}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={f.operator}
+                onValueChange={(val: string) =>
+                  handleUpdateFilter(idx, 'operator', val as FilterOperator)
+                }
+              >
+                <SelectTrigger className='w-[180px]'>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='gte'>Equal or more than</SelectItem>
+                  <SelectItem value='lte'>Equal or less than</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Input
+                type='number'
+                className='h-9 w-[140px]'
+                placeholder='Value'
+                value={f.value}
+                onChange={(e) =>
+                  handleUpdateFilter(idx, 'value', e.target.value)
+                }
+              />
+
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={() => handleRemoveFilter(idx)}
+              >
+                Remove
+              </Button>
+            </div>
+          ))}
         </div>
       </div>
 
