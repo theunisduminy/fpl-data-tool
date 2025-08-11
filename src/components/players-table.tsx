@@ -61,8 +61,13 @@ export type Player = {
 export type BasePlayer = Omit<Player, 'position'>;
 
 type Props = {
-  players: Player[];
+  players: (Player & { isDrafted?: boolean; draftedBy?: string })[];
   showPositionFilter?: boolean;
+  onRowClick?: (player: Player) => void;
+  selectedPlayer?: { web_name: string; team: string } | null;
+  showTeamAssignment?: boolean;
+  teams?: Array<{ id: string; name: string }>;
+  onTeamAssign?: (playerId: string, teamId: string | null) => void;
 };
 
 const POSITION_OPTIONS: Array<{
@@ -122,9 +127,19 @@ type SortConfig = {
   direction: 'asc' | 'desc';
 } | null;
 
-export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
+export const PlayersTable = (props: Props) => {
+  const { 
+    players, 
+    showPositionFilter = true, 
+    onRowClick, 
+    selectedPlayer,
+    showTeamAssignment = false,
+    teams = [],
+    onTeamAssign
+  } = props;
   const [position, setPosition] = useState<Player['position'] | 'ALL'>('ALL');
   const [team, setTeam] = useState<string | 'ALL'>('ALL');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const PAGE_SIZE = 50;
   const [page, setPage] = useState<number>(1);
   const [sortConfig, setSortConfig] = useState<SortConfig>(null);
@@ -178,7 +193,7 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
 
   const handleClearFilters = () => setFilters([]);
 
-  const teams = useMemo(() => {
+  const playerTeams = useMemo(() => {
     const set = new Set<string>();
     for (const p of players) {
       if (typeof p.team === 'string') set.add(p.team);
@@ -188,7 +203,7 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
 
   useEffect(() => {
     setPage(1);
-  }, [position, team, sortConfig]);
+  }, [position, team, sortConfig, searchQuery]);
 
   const handleSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc';
@@ -228,7 +243,12 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
     let result = playersWithRanking.filter((p) => {
       const matchesPosition = position === 'ALL' || p.position === position;
       const matchesTeam = team === 'ALL' || p.team === team;
-      return matchesPosition && matchesTeam;
+      const matchesSearch = !searchQuery.trim() || 
+        p.web_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.first_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.second_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.team.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesPosition && matchesTeam && matchesSearch;
     });
 
     // Apply advanced filters (AND/OR across up to 5 filters)
@@ -278,7 +298,7 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
     }
 
     return result;
-  }, [playersWithRanking, position, team, sortConfig, filters, filterLogic]);
+  }, [playersWithRanking, position, team, searchQuery, sortConfig, filters, filterLogic]);
   // include filters and filterLogic in memo deps
   // NOTE: We must re-declare filtered with updated deps to include filters
 
@@ -333,8 +353,13 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
   }, [allColumns, columnVisibility]);
 
   const visibleColumns = useMemo(() => {
-    return allColumns.filter((col) => columnVisibility[col] !== false);
-  }, [allColumns, columnVisibility]);
+    const baseColumns = allColumns.filter((col) => columnVisibility[col] !== false);
+    // Add team assignment column if in team assignment mode
+    if (showTeamAssignment) {
+      return [...baseColumns, 'team_assignment'];
+    }
+    return baseColumns;
+  }, [allColumns, columnVisibility, showTeamAssignment]);
 
   const filteredColumns = useMemo(() => {
     if (!columnSearch) return allColumns;
@@ -422,6 +447,19 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
 
   return (
     <div className='flex w-full flex-col gap-4'>
+      {/* Search Bar */}
+      <div className='flex items-center gap-2'>
+        <div className='relative flex-1 max-w-sm'>
+          <Search className='absolute left-2 top-2.5 h-4 w-4 text-muted-foreground' />
+          <Input
+            placeholder='Search players...'
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className='pl-8'
+          />
+        </div>
+      </div>
+      
       <div className='flex flex-wrap items-center gap-3 py-2'>
         {showPositionFilter && (
           <div className='flex w-full flex-col items-start gap-1 sm:w-auto sm:flex-row sm:items-center sm:gap-2'>
@@ -453,7 +491,7 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value='ALL'>All</SelectItem>
-              {teams.map((t) => (
+              {playerTeams.map((t) => (
                 <SelectItem key={t} value={t}>
                   {t}
                 </SelectItem>
@@ -765,6 +803,7 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
             <TableRow>
               {visibleColumns.map((col) => {
                 const isImage = col === 'image';
+                const isTeamAssignment = col === 'team_assignment';
                 const isSorted = sortConfig?.key === col;
                 const sortDirection = isSorted ? sortConfig.direction : null;
 
@@ -772,6 +811,8 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
                   <TableHead key={col} className='whitespace-nowrap'>
                     {isImage ? (
                       <span className='text-xs font-medium'>Photo</span>
+                    ) : isTeamAssignment ? (
+                      <span className='text-xs font-medium'>Assign Team</span>
                     ) : (
                       <button
                         type='button'
@@ -805,38 +846,98 @@ export const PlayersTable = ({ players, showPositionFilter = true }: Props) => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {pageItems.map((p, idx) => (
-              <TableRow key={`${p.web_name}-${idx}`}>
-                {visibleColumns.map((col) => {
-                  if (col === 'image') {
-                    return (
-                      <TableCell key={col} className='p-2'>
-                        <PlayerImage src={p.image} alt={p.web_name} />
-                      </TableCell>
-                    );
-                  }
-                  if (col === 'rank_score') {
-                    const rankScore = (p as Record<string, unknown>)[col];
+            {pageItems.map((p, idx) => {
+              const isSelected = selectedPlayer && 
+                p.web_name === selectedPlayer.web_name && 
+                p.team === selectedPlayer.team;
+              const isDrafted = (p as any).isDrafted;
+              
+              return (
+                <TableRow 
+                  key={`${p.web_name}-${idx}`}
+                  className={`
+                    ${onRowClick ? 'cursor-pointer hover:bg-muted/50' : ''}
+                    ${isSelected ? 'bg-primary/10 border-primary/20' : ''}
+                    ${isDrafted ? 'opacity-60' : ''}
+                  `}
+                  onClick={() => onRowClick?.(p)}
+                >
+                  {visibleColumns.map((col) => {
+                    if (col === 'image') {
+                      return (
+                        <TableCell key={col} className='p-2'>
+                          <PlayerImage src={p.image} alt={p.web_name} />
+                        </TableCell>
+                      );
+                    }
+                    if (col === 'team_assignment') {
+                      const playerId = `${p.web_name}-${p.team}`;
+                      const currentTeam = (p as any).draftedBy || '';
+                      
+                      return (
+                        <TableCell key={col} className='min-w-[160px]'>
+                          <Select
+                            value={currentTeam}
+                            onValueChange={(value) => {
+                              const newTeamId = value === 'none' ? null : value;
+                              onTeamAssign?.(playerId, newTeamId);
+                            }}
+                          >
+                            <SelectTrigger className='h-8'>
+                              <SelectValue placeholder='Select team' />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value='none'>No team</SelectItem>
+                              {teams.map((team) => (
+                                <SelectItem key={team.id} value={team.id}>
+                                  {team.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                      );
+                    }
+                    if (col === 'rank_score') {
+                      const rankScore = (p as Record<string, unknown>)[col];
+                      return (
+                        <TableCell
+                          key={col}
+                          className='min-w-[100px] font-medium whitespace-nowrap'
+                        >
+                          {rankScore ? Number(rankScore).toFixed(2) : ''}
+                        </TableCell>
+                      );
+                    }
+                    if (col === 'web_name') {
+                      return (
+                        <TableCell
+                          key={col}
+                          className='min-w-[100px] whitespace-nowrap font-medium'
+                        >
+                          <div className="flex items-center gap-2">
+                            {String((p as Record<string, unknown>)[col] ?? '')}
+                            {isDrafted && (
+                              <span className="text-xs bg-destructive/10 text-destructive px-1.5 py-0.5 rounded">
+                                DRAFTED
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                      );
+                    }
                     return (
                       <TableCell
                         key={col}
-                        className='min-w-[100px] font-medium whitespace-nowrap'
+                        className='min-w-[100px] whitespace-nowrap'
                       >
-                        {rankScore ? Number(rankScore).toFixed(2) : ''}
+                        {String((p as Record<string, unknown>)[col] ?? '')}
                       </TableCell>
                     );
-                  }
-                  return (
-                    <TableCell
-                      key={col}
-                      className='min-w-[100px] whitespace-nowrap'
-                    >
-                      {String((p as Record<string, unknown>)[col] ?? '')}
-                    </TableCell>
-                  );
-                })}
-              </TableRow>
-            ))}
+                  })}
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </div>

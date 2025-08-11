@@ -26,6 +26,10 @@ const navItems = [
   { href: '/dashboard/forwards', label: 'Forwards' },
 ];
 
+const draftItems = [
+  { href: '/dashboard/draft', label: 'Draft Room' },
+];
+
 export default function DashboardLayout({
   children,
 }: {
@@ -45,6 +49,20 @@ export default function DashboardLayout({
           <div className='px-2 py-2 text-base font-semibold'>Draft Tool</div>
         </SidebarHeader>
         <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupLabel>Draft</SidebarGroupLabel>
+            <SidebarMenu>
+              {draftItems.map((item) => (
+                <SidebarMenuItem key={item.href}>
+                  <Link href={item.href} className='block'>
+                    <SidebarMenuButton isActive={pathname === item.href}>
+                      {item.label}
+                    </SidebarMenuButton>
+                  </Link>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroup>
           <SidebarGroup>
             <SidebarGroupLabel>Players</SidebarGroupLabel>
             <SidebarMenu>
@@ -72,7 +90,7 @@ export default function DashboardLayout({
           <header className='bg-background sticky top-0 z-50 flex h-14 shrink-0 items-center gap-2 border-b px-4'>
             <SidebarTrigger className='-ml-1' />
             <div className='text-muted-foreground text-sm'>
-              {navItems.find((item) => item.href === pathname)?.label ||
+              {[...draftItems, ...navItems].find((item) => item.href === pathname)?.label ||
                 'Dashboard'}
             </div>
           </header>
