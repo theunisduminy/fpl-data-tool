@@ -13,12 +13,7 @@ const POSITION_LIMITS = {
   FWD: 3,
 };
 
-interface DraftPanelProps {
-  onPlayerSelect?: (player: any) => void;
-  selectedPlayer?: any | null;
-}
-
-export function DraftPanel({ onPlayerSelect }: DraftPanelProps) {
+export function DraftPanel() {
   const { teams, undraftPlayer, getTeamRoster, getDraftSummary, resetDraft } =
     useDraft();
 

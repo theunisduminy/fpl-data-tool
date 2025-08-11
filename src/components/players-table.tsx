@@ -72,6 +72,12 @@ type Props = {
   onTeamAssign?: (playerId: string, teamId: string | null) => void;
 };
 
+type AugmentedPlayer = Player & {
+  isDrafted?: boolean;
+  draftedBy?: string;
+  rank_score?: number;
+};
+
 const POSITION_OPTIONS: Array<{
   label: string;
   value: Player['position'] | 'ALL';
@@ -256,8 +262,8 @@ export const PlayersTable = (props: Props) => {
     return Object.values(weights).reduce((sum, weight) => sum + weight, 0);
   }, [weights]);
 
-  const playersWithRanking = useMemo(() => {
-    if (totalWeight === 0) return players;
+  const playersWithRanking = useMemo<AugmentedPlayer[]>(() => {
+    if (totalWeight === 0) return players as AugmentedPlayer[];
 
     return players.map((player) => {
       let rankScore = 0;
@@ -270,7 +276,7 @@ export const PlayersTable = (props: Props) => {
           rankScore += (value * weight) / 100;
         }
       });
-      return { ...player, rank_score: rankScore };
+      return { ...player, rank_score: rankScore } as AugmentedPlayer;
     });
   }, [players, weights, totalWeight]);
 
@@ -976,12 +982,12 @@ export const PlayersTable = (props: Props) => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {pageItems.map((p, idx) => {
+            {pageItems.map((p: AugmentedPlayer, idx) => {
               const isSelected =
                 selectedPlayer &&
                 p.web_name === selectedPlayer.web_name &&
                 p.team === selectedPlayer.team;
-              const isDrafted = (p as any).isDrafted;
+              const isDrafted = p.isDrafted;
 
               return (
                 <TableRow
@@ -999,7 +1005,7 @@ export const PlayersTable = (props: Props) => {
                     }
                     if (col === 'team_assignment') {
                       const playerId = `${p.web_name}-${p.team}`;
-                      const currentTeam = (p as any).draftedBy || '';
+                      const currentTeam = p.draftedBy || '';
 
                       return (
                         <TableCell key={col} className='min-w-[160px]'>
@@ -1026,7 +1032,7 @@ export const PlayersTable = (props: Props) => {
                       );
                     }
                     if (col === 'rank_score') {
-                      const rankScore = (p as Record<string, unknown>)[col];
+                      const rankScore = (p as Player)[col];
                       return (
                         <TableCell
                           key={col}
@@ -1043,7 +1049,7 @@ export const PlayersTable = (props: Props) => {
                           className='min-w-[100px] font-medium whitespace-nowrap'
                         >
                           <div className='flex items-center gap-2'>
-                            {String((p as Record<string, unknown>)[col] ?? '')}
+                            {String((p as Player)[col] ?? '')}
                             {isDrafted && (
                               <span className='bg-destructive/10 text-destructive rounded px-1.5 py-0.5 text-xs'>
                                 DRAFTED
@@ -1058,7 +1064,7 @@ export const PlayersTable = (props: Props) => {
                         key={col}
                         className='min-w-[100px] whitespace-nowrap'
                       >
-                        {String((p as Record<string, unknown>)[col] ?? '')}
+                        {String((p as Player)[col] ?? '')}
                       </TableCell>
                     );
                   })}

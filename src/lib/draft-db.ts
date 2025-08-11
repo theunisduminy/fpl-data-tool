@@ -255,7 +255,7 @@ class DraftDatabase {
         const result = request.result;
         if (result) {
           // Remove the id field we added
-          const { id, ...settings } = result;
+          const { ...settings } = result;
           resolve(settings as DraftSettings);
         } else {
           resolve(null);
