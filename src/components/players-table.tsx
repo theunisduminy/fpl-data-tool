@@ -44,6 +44,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
+import { draftDB, type PositionRanking } from '@/lib/draft-db';
 
 export type Player = {
   first_name: string;
@@ -63,6 +64,7 @@ export type BasePlayer = Omit<Player, 'position'>;
 type Props = {
   players: (Player & { isDrafted?: boolean; draftedBy?: string })[];
   showPositionFilter?: boolean;
+  initialPosition?: Player['position'] | 'ALL';
   onRowClick?: (player: Player) => void;
   selectedPlayer?: { web_name: string; team: string } | null;
   showTeamAssignment?: boolean;
@@ -128,16 +130,19 @@ type SortConfig = {
 } | null;
 
 export const PlayersTable = (props: Props) => {
-  const { 
-    players, 
-    showPositionFilter = true, 
-    onRowClick, 
+  const {
+    players,
+    showPositionFilter = true,
+    initialPosition = 'ALL',
+    onRowClick,
     selectedPlayer,
     showTeamAssignment = false,
     teams = [],
-    onTeamAssign
+    onTeamAssign,
   } = props;
-  const [position, setPosition] = useState<Player['position'] | 'ALL'>('ALL');
+  const [position, setPosition] = useState<Player['position'] | 'ALL'>(
+    initialPosition,
+  );
   const [team, setTeam] = useState<string | 'ALL'>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const PAGE_SIZE = 50;
@@ -149,6 +154,7 @@ export const PlayersTable = (props: Props) => {
   const [columnSearch, setColumnSearch] = useState<string>('');
   const [weights, setWeights] = useState<Record<string, number>>({});
   const [isRankingSheetOpen, setIsRankingSheetOpen] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   type FilterOperator = 'gte' | 'lte';
   type PlayerFilter = {
     column: string;
@@ -205,6 +211,35 @@ export const PlayersTable = (props: Props) => {
     setPage(1);
   }, [position, team, sortConfig, searchQuery]);
 
+  // Auto-load saved ranking when position changes
+  useEffect(() => {
+    const loadPositionRanking = async () => {
+      if (position === 'ALL') {
+        setWeights({});
+        setHasUnsavedChanges(false);
+        return;
+      }
+
+      try {
+        await draftDB.init();
+        const savedRanking = await draftDB.getPositionRanking(
+          position as 'GK' | 'DEF' | 'MID' | 'FWD',
+        );
+        if (savedRanking) {
+          setWeights(savedRanking.weights);
+          setHasUnsavedChanges(false);
+        } else {
+          setWeights({});
+          setHasUnsavedChanges(false);
+        }
+      } catch (error) {
+        console.error('Failed to load position ranking:', error);
+      }
+    };
+
+    loadPositionRanking();
+  }, [position]);
+
   const handleSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc';
     if (
@@ -243,7 +278,8 @@ export const PlayersTable = (props: Props) => {
     let result = playersWithRanking.filter((p) => {
       const matchesPosition = position === 'ALL' || p.position === position;
       const matchesTeam = team === 'ALL' || p.team === team;
-      const matchesSearch = !searchQuery.trim() || 
+      const matchesSearch =
+        !searchQuery.trim() ||
         p.web_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.first_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.second_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -298,7 +334,15 @@ export const PlayersTable = (props: Props) => {
     }
 
     return result;
-  }, [playersWithRanking, position, team, searchQuery, sortConfig, filters, filterLogic]);
+  }, [
+    playersWithRanking,
+    position,
+    team,
+    searchQuery,
+    sortConfig,
+    filters,
+    filterLogic,
+  ]);
   // include filters and filterLogic in memo deps
   // NOTE: We must re-declare filtered with updated deps to include filters
 
@@ -333,10 +377,28 @@ export const PlayersTable = (props: Props) => {
   const numericColumns = useMemo(() => {
     if (players.length === 0) return [];
     const sample = players[0];
-    return allColumns.filter((col) => {
+    let numeric = allColumns.filter((col) => {
       const value = (sample as Record<string, unknown>)[col];
-      return typeof value === 'number' && col !== 'id' && col !== 'team_code';
+      // Include both actual numbers and string numbers that can be parsed
+      const isNumeric =
+        typeof value === 'number' ||
+        (typeof value === 'string' &&
+          !isNaN(parseFloat(value)) &&
+          isFinite(parseFloat(value)));
+      return (
+        isNumeric &&
+        col !== 'id' &&
+        col !== 'team_code' &&
+        col !== 'web_name' &&
+        col !== 'first_name' &&
+        col !== 'second_name'
+      );
     });
+
+    // Remove _per_90 stats and prioritize total/absolute versions
+    numeric = numeric.filter((col) => !col.includes('_per_90'));
+
+    return numeric;
   }, [allColumns, players]);
 
   // Initialize column visibility with default visible columns
@@ -353,7 +415,9 @@ export const PlayersTable = (props: Props) => {
   }, [allColumns, columnVisibility]);
 
   const visibleColumns = useMemo(() => {
-    const baseColumns = allColumns.filter((col) => columnVisibility[col] !== false);
+    const baseColumns = allColumns.filter(
+      (col) => columnVisibility[col] !== false,
+    );
     // Add team assignment column if in team assignment mode
     if (showTeamAssignment) {
       return [...baseColumns, 'team_assignment'];
@@ -393,6 +457,29 @@ export const PlayersTable = (props: Props) => {
       ...prev,
       [column]: Math.max(0, Math.min(100, weight)),
     }));
+    setHasUnsavedChanges(true);
+  };
+
+  const handleSaveRanking = async () => {
+    if (position === 'ALL' || totalWeight !== 100) return;
+
+    try {
+      const ranking: PositionRanking = {
+        position: position as 'GK' | 'DEF' | 'MID' | 'FWD',
+        weights,
+        updatedAt: new Date(),
+      };
+
+      await draftDB.savePositionRanking(ranking);
+      setHasUnsavedChanges(false);
+    } catch (error) {
+      console.error('Failed to save position ranking:', error);
+    }
+  };
+
+  const handleClearRanking = async () => {
+    setWeights({});
+    setHasUnsavedChanges(false);
   };
 
   const handleApplyRanking = () => {
@@ -449,8 +536,8 @@ export const PlayersTable = (props: Props) => {
     <div className='flex w-full flex-col gap-4'>
       {/* Search Bar */}
       <div className='flex items-center gap-2'>
-        <div className='relative flex-1 max-w-sm'>
-          <Search className='absolute left-2 top-2.5 h-4 w-4 text-muted-foreground' />
+        <div className='relative max-w-sm flex-1'>
+          <Search className='text-muted-foreground absolute top-2.5 left-2 h-4 w-4' />
           <Input
             placeholder='Search players...'
             value={searchQuery}
@@ -459,7 +546,7 @@ export const PlayersTable = (props: Props) => {
           />
         </div>
       </div>
-      
+
       <div className='flex flex-wrap items-center gap-3 py-2'>
         {showPositionFilter && (
           <div className='flex w-full flex-col items-start gap-1 sm:w-auto sm:flex-row sm:items-center sm:gap-2'>
@@ -519,6 +606,21 @@ export const PlayersTable = (props: Props) => {
                   Assign weights to different stats to calculate player
                   rankings. Weights must total 100%.
                 </SheetDescription>
+                {position !== 'ALL' && (
+                  <div className='mt-2 px-5 text-sm'>
+                    <strong>Position:</strong> {position}
+                    {!hasUnsavedChanges && Object.keys(weights).length > 0 && (
+                      <span className='ml-2 text-green-600'>
+                        ✓ Saved ranking loaded
+                      </span>
+                    )}
+                    {hasUnsavedChanges && (
+                      <span className='ml-2 text-orange-600'>
+                        • Unsaved changes
+                      </span>
+                    )}
+                  </div>
+                )}
               </SheetHeader>
               <div className='mt-6 space-y-4 p-5'>
                 <div className='space-y-3'>
@@ -564,20 +666,48 @@ export const PlayersTable = (props: Props) => {
                     </p>
                   )}
                 </div>
-                <div className='flex gap-2 pt-4'>
-                  <Button
-                    onClick={handleApplyRanking}
-                    disabled={totalWeight !== 100}
-                    className='flex-1'
-                  >
-                    Apply Ranking
-                  </Button>
-                  <Button
-                    variant='outline'
-                    onClick={() => setIsRankingSheetOpen(false)}
-                  >
-                    Cancel
-                  </Button>
+                <div className='space-y-3 pt-4'>
+                  <div className='flex gap-2'>
+                    <Button
+                      onClick={handleApplyRanking}
+                      disabled={totalWeight !== 100}
+                      className='flex-1'
+                    >
+                      Apply Ranking
+                    </Button>
+                    <Button
+                      variant='outline'
+                      onClick={() => setIsRankingSheetOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+
+                  {position !== 'ALL' && (
+                    <div className='border-t pt-3'>
+                      <div className='flex gap-2'>
+                        <Button
+                          onClick={handleSaveRanking}
+                          disabled={totalWeight !== 100}
+                          variant='outline'
+                          className='flex-1 bg-white text-black'
+                        >
+                          Save for {position}s
+                        </Button>
+                        <Button
+                          onClick={handleClearRanking}
+                          variant='outline'
+                          size='sm'
+                        >
+                          Clear
+                        </Button>
+                      </div>
+                      <p className='text-muted-foreground mt-1 text-xs'>
+                        Save weights to auto-apply when viewing {position}{' '}
+                        players
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </SheetContent>
@@ -847,19 +977,16 @@ export const PlayersTable = (props: Props) => {
           </TableHeader>
           <TableBody>
             {pageItems.map((p, idx) => {
-              const isSelected = selectedPlayer && 
-                p.web_name === selectedPlayer.web_name && 
+              const isSelected =
+                selectedPlayer &&
+                p.web_name === selectedPlayer.web_name &&
                 p.team === selectedPlayer.team;
               const isDrafted = (p as any).isDrafted;
-              
+
               return (
-                <TableRow 
+                <TableRow
                   key={`${p.web_name}-${idx}`}
-                  className={`
-                    ${onRowClick ? 'cursor-pointer hover:bg-muted/50' : ''}
-                    ${isSelected ? 'bg-primary/10 border-primary/20' : ''}
-                    ${isDrafted ? 'opacity-60' : ''}
-                  `}
+                  className={` ${onRowClick ? 'hover:bg-muted/50 cursor-pointer' : ''} ${isSelected ? 'bg-primary/10 border-primary/20' : ''} ${isDrafted ? 'opacity-60' : ''} `}
                   onClick={() => onRowClick?.(p)}
                 >
                   {visibleColumns.map((col) => {
@@ -873,7 +1000,7 @@ export const PlayersTable = (props: Props) => {
                     if (col === 'team_assignment') {
                       const playerId = `${p.web_name}-${p.team}`;
                       const currentTeam = (p as any).draftedBy || '';
-                      
+
                       return (
                         <TableCell key={col} className='min-w-[160px]'>
                           <Select
@@ -913,12 +1040,12 @@ export const PlayersTable = (props: Props) => {
                       return (
                         <TableCell
                           key={col}
-                          className='min-w-[100px] whitespace-nowrap font-medium'
+                          className='min-w-[100px] font-medium whitespace-nowrap'
                         >
-                          <div className="flex items-center gap-2">
+                          <div className='flex items-center gap-2'>
                             {String((p as Record<string, unknown>)[col] ?? '')}
                             {isDrafted && (
-                              <span className="text-xs bg-destructive/10 text-destructive px-1.5 py-0.5 rounded">
+                              <span className='bg-destructive/10 text-destructive rounded px-1.5 py-0.5 text-xs'>
                                 DRAFTED
                               </span>
                             )}

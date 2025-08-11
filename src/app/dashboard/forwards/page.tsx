@@ -14,7 +14,7 @@ export default function ForwardsPage() {
   return (
     <>
       <h1 className='text-2xl font-semibold'>Forwards</h1>
-      <PlayersTable players={players} showPositionFilter={false} />
+      <PlayersTable players={players} showPositionFilter={false} initialPosition='FWD' />
     </>
   );
 }

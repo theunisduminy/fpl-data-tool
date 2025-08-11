@@ -1,8 +1,8 @@
-export type DraftPlayer = {
+import type { Player } from '@/components/players-table';
+export type DraftPlayer = Player & {
   id: string;
   isDrafted: boolean;
   draftedBy?: string;
-  [key: string]: unknown; // Allow all original player fields
 };
 
 export type DraftTeam = {
@@ -21,9 +21,15 @@ export type DraftSettings = {
   updatedAt: Date;
 };
 
+export type PositionRanking = {
+  position: 'GK' | 'DEF' | 'MID' | 'FWD';
+  weights: Record<string, number>;
+  updatedAt: Date;
+};
+
 class DraftDatabase {
   private dbName = 'DraftToolDB';
-  private version = 1;
+  private version = 2;
   private db: IDBDatabase | null = null;
 
   async init(): Promise<void> {
@@ -41,7 +47,9 @@ class DraftDatabase {
 
         // Players store
         if (!db.objectStoreNames.contains('players')) {
-          const playersStore = db.createObjectStore('players', { keyPath: 'id' });
+          const playersStore = db.createObjectStore('players', {
+            keyPath: 'id',
+          });
           playersStore.createIndex('position', 'position', { unique: false });
           playersStore.createIndex('isDrafted', 'isDrafted', { unique: false });
           playersStore.createIndex('draftedBy', 'draftedBy', { unique: false });
@@ -56,6 +64,11 @@ class DraftDatabase {
         if (!db.objectStoreNames.contains('settings')) {
           db.createObjectStore('settings', { keyPath: 'id' });
         }
+
+        // Position rankings store
+        if (!db.objectStoreNames.contains('position_rankings')) {
+          db.createObjectStore('position_rankings', { keyPath: 'position' });
+        }
       };
     });
   }
@@ -68,12 +81,13 @@ class DraftDatabase {
   // Player operations
   async savePlayers(players: DraftPlayer[]): Promise<void> {
     const store = this.getStore('players', 'readwrite');
-    const promises = players.map(player => 
-      new Promise<void>((resolve, reject) => {
-        const request = store.put(player);
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
-      })
+    const promises = players.map(
+      (player) =>
+        new Promise<void>((resolve, reject) => {
+          const request = store.put(player);
+          request.onsuccess = () => resolve();
+          request.onerror = () => reject(request.error);
+        }),
     );
     await Promise.all(promises);
   }
@@ -101,7 +115,7 @@ class DraftDatabase {
     return new Promise((resolve, reject) => {
       const store = this.getStore('players', 'readwrite');
       const getRequest = store.get(playerId);
-      
+
       getRequest.onsuccess = () => {
         const player = getRequest.result;
         if (!player) {
@@ -112,14 +126,14 @@ class DraftDatabase {
         const updatedPlayer: DraftPlayer = {
           ...player,
           isDrafted: true,
-          draftedBy: teamId
+          draftedBy: teamId,
         };
 
         const putRequest = store.put(updatedPlayer);
         putRequest.onsuccess = () => resolve();
         putRequest.onerror = () => reject(putRequest.error);
       };
-      
+
       getRequest.onerror = () => reject(getRequest.error);
     });
   }
@@ -128,7 +142,7 @@ class DraftDatabase {
     return new Promise((resolve, reject) => {
       const store = this.getStore('players', 'readwrite');
       const getRequest = store.get(playerId);
-      
+
       getRequest.onsuccess = () => {
         const player = getRequest.result;
         if (!player) {
@@ -139,14 +153,14 @@ class DraftDatabase {
         const updatedPlayer: DraftPlayer = {
           ...player,
           isDrafted: false,
-          draftedBy: undefined
+          draftedBy: undefined,
         };
 
         const putRequest = store.put(updatedPlayer);
         putRequest.onsuccess = () => resolve();
         putRequest.onerror = () => reject(putRequest.error);
       };
-      
+
       getRequest.onerror = () => reject(getRequest.error);
     });
   }
@@ -154,12 +168,13 @@ class DraftDatabase {
   // Team operations
   async saveTeams(teams: DraftTeam[]): Promise<void> {
     const store = this.getStore('teams', 'readwrite');
-    const promises = teams.map(team => 
-      new Promise<void>((resolve, reject) => {
-        const request = store.put(team);
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
-      })
+    const promises = teams.map(
+      (team) =>
+        new Promise<void>((resolve, reject) => {
+          const request = store.put(team);
+          request.onsuccess = () => resolve();
+          request.onerror = () => reject(request.error);
+        }),
     );
     await Promise.all(promises);
   }
@@ -177,7 +192,7 @@ class DraftDatabase {
     return new Promise((resolve, reject) => {
       const store = this.getStore('teams', 'readwrite');
       const getRequest = store.get(teamId);
-      
+
       getRequest.onsuccess = () => {
         const team = getRequest.result;
         if (!team) {
@@ -193,7 +208,7 @@ class DraftDatabase {
         putRequest.onsuccess = () => resolve();
         putRequest.onerror = () => reject(putRequest.error);
       };
-      
+
       getRequest.onerror = () => reject(getRequest.error);
     });
   }
@@ -202,7 +217,7 @@ class DraftDatabase {
     return new Promise((resolve, reject) => {
       const store = this.getStore('teams', 'readwrite');
       const getRequest = store.get(teamId);
-      
+
       getRequest.onsuccess = () => {
         const team = getRequest.result;
         if (!team) {
@@ -216,7 +231,7 @@ class DraftDatabase {
         putRequest.onsuccess = () => resolve();
         putRequest.onerror = () => reject(putRequest.error);
       };
-      
+
       getRequest.onerror = () => reject(getRequest.error);
     });
   }
@@ -250,10 +265,34 @@ class DraftDatabase {
     });
   }
 
+  // Position ranking operations
+  async savePositionRanking(ranking: PositionRanking): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const store = this.getStore('position_rankings', 'readwrite');
+      const request = store.put(ranking);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async getPositionRanking(
+    position: 'GK' | 'DEF' | 'MID' | 'FWD',
+  ): Promise<PositionRanking | null> {
+    return new Promise((resolve, reject) => {
+      const store = this.getStore('position_rankings');
+      const request = store.get(position);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
   async clearAllData(): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
-    
-    const transaction = this.db.transaction(['players', 'teams', 'settings'], 'readwrite');
+
+    const transaction = this.db.transaction(
+      ['players', 'teams', 'settings', 'position_rankings'],
+      'readwrite',
+    );
     const promises = [
       new Promise<void>((resolve, reject) => {
         const request = transaction.objectStore('players').clear();
@@ -269,9 +308,14 @@ class DraftDatabase {
         const request = transaction.objectStore('settings').clear();
         request.onsuccess = () => resolve();
         request.onerror = () => reject(request.error);
-      })
+      }),
+      new Promise<void>((resolve, reject) => {
+        const request = transaction.objectStore('position_rankings').clear();
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      }),
     ];
-    
+
     await Promise.all(promises);
   }
 }

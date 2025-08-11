@@ -14,7 +14,7 @@ export default function DefendersPage() {
   return (
     <>
       <h1 className='text-2xl font-semibold'>Defenders</h1>
-      <PlayersTable players={players} showPositionFilter={false} />
+      <PlayersTable players={players} showPositionFilter={false} initialPosition='DEF' />
     </>
   );
 }

@@ -14,7 +14,7 @@ export default function MidfieldersPage() {
   return (
     <>
       <h1 className='text-2xl font-semibold'>Midfielders</h1>
-      <PlayersTable players={players} showPositionFilter={false} />
+      <PlayersTable players={players} showPositionFilter={false} initialPosition='MID' />
     </>
   );
 }

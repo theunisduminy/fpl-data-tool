@@ -14,7 +14,7 @@ export default function GoalkeepersPage() {
   return (
     <>
       <h1 className='text-2xl font-semibold'>Goalkeepers</h1>
-      <PlayersTable players={players} showPositionFilter={false} />
+      <PlayersTable players={players} showPositionFilter={false} initialPosition='GK' />
     </>
   );
 }
