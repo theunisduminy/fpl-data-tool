@@ -1,6 +1,4 @@
 'use client';
-
-import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
 import {
   User,
@@ -112,13 +110,15 @@ function PlayerImage({ src, alt }: { src: string; alt: string }) {
   }
 
   return (
-    <Image
-      src={src}
+    <img
+      src={`/api/image?url=${encodeURIComponent(src)}`}
       alt={alt}
       width={40}
       height={40}
       className='rounded-md'
       onError={() => setImageError(true)}
+      loading='lazy'
+      decoding='async'
     />
   );
 }
