@@ -9,7 +9,7 @@ export async function GET(request: Request): Promise<Response> {
   let targetUrl: URL;
   try {
     targetUrl = new URL(targetUrlParam);
-  } catch (error) {
+  } catch {
     return new Response('Invalid url parameter', { status: 400 });
   }
 
@@ -52,7 +52,7 @@ export async function GET(request: Request): Promise<Response> {
     if (contentLength) headers['Content-Length'] = contentLength;
 
     return new Response(buffer, { status: 200, headers });
-  } catch (error) {
+  } catch {
     return new Response('Error fetching image', { status: 500 });
   }
 }
